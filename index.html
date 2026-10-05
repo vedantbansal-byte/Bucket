@@ -508,13 +508,14 @@
   </div>
 
   <script>
-    // Sheet Endpoint and Alternative Proxy Fallbacks
-    const RAW_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9jVeiYEHpUNlySSg9FtWGlVzuf0BGrdNMNJ0VUmJ--Sge9FrL36iUJkHbE9XRRSOtNq37PWykStMT/pub?output=csv";
+    // Native Google Sheet Endpoint with CORS headers enabled natively
+    const GVIZ_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9jVeiYEHpUNlySSg9FtWGlVzuf0BGrdNMNJ0VUmJ--Sge9FrL36iUJkHbE9XRRSOtNq37PWykStMT/gviz/tq?tqx=out:csv";
+    const PUB_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9jVeiYEHpUNlySSg9FtWGlVzuf0BGrdNMNJ0VUmJ--Sge9FrL36iUJkHbE9XRRSOtNq37PWykStMT/pub?output=csv";
 
-    const PROXY_ENDPOINTS = [
-      "https://api.allorigins.win/raw?url=" + encodeURIComponent(RAW_CSV_URL),
-      "https://corsproxy.io/?" + encodeURIComponent(RAW_CSV_URL),
-      "https://proxy.cors.sh/" + RAW_CSV_URL
+    const PROXY_FALLBACKS = [
+      GVIZ_URL,
+      "https://api.allorigins.win/raw?url=" + encodeURIComponent(PUB_CSV_URL),
+      "https://corsproxy.io/?" + encodeURIComponent(PUB_CSV_URL)
     ];
 
     const metabaseQueries = [
@@ -537,7 +538,7 @@
       { name: "State PnL - Campaign Split", type: "campaign_split", id: 4411 }
     ];
 
-    // Robust CSV / TSV Line Splitter
+    // RFC4180-compliant CSV & TSV Line Parser
     function parseCSVLine(line) {
       let result = [];
       let insideQuote = false;
@@ -559,15 +560,28 @@
       return result.map(val => val.replace(/^"|"$/g, '').trim());
     }
 
+    async function fetchWithTimeout(url, timeoutMs = 6000) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+      try {
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        return response;
+      } catch (err) {
+        clearTimeout(timeoutId);
+        throw err;
+      }
+    }
+
     async function fetchCSVData() {
       const syncStatus = document.getElementById('syncStatus');
       if (syncStatus) syncStatus.innerText = "(Fetching latest Google Sheet data...)";
 
       let fetchedData = null;
 
-      for (let endpoint of PROXY_ENDPOINTS) {
+      for (let endpoint of PROXY_FALLBACKS) {
         try {
-          const res = await fetch(endpoint);
+          const res = await fetchWithTimeout(endpoint, 5000);
           if (res.ok) {
             const text = await res.text();
             if (text && text.trim().length > 50) {
@@ -576,7 +590,7 @@
             }
           }
         } catch (e) {
-          console.warn("Proxy failed, trying next fallback...", endpoint);
+          console.warn("Endpoint request failed/timed out, attempting next fallback:", endpoint);
         }
       }
 
