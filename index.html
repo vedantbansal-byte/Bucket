@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Vedant's Funky Operations Deck</title>
   <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+  <!-- PapaParse for robust CSV parsing -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
   <style>
     :root {
       --bg-light: #FDFBF7;
@@ -155,7 +157,7 @@
       border-color: var(--funky-purple);
     }
 
-    /* Enhanced Paste Zone */
+    /* Enhanced Sync & Paste Zone */
     .paste-wrapper {
       position: relative;
       background: #FFFBEB;
@@ -188,6 +190,36 @@
       gap: 6px;
     }
 
+    .btn-action {
+      border: 2px solid var(--border-dark);
+      font-size: 11px;
+      font-weight: 800;
+      padding: 5px 12px;
+      border-radius: 8px;
+      cursor: pointer;
+      box-shadow: var(--shadow-pop);
+      transition: all 0.15s;
+    }
+
+    .btn-sync {
+      background: var(--funky-cyan);
+      color: #FFF;
+    }
+
+    .btn-sync:hover {
+      background: var(--funky-purple);
+    }
+
+    .btn-reset {
+      background: #FEE2E2;
+      color: #EF4444;
+    }
+
+    .btn-reset:hover {
+      background: #EF4444;
+      color: #FFF;
+    }
+
     .paste-box {
       width: 100%;
       height: 65px;
@@ -209,24 +241,6 @@
       border-color: var(--funky-green);
       color: var(--funky-green);
       font-weight: 700;
-    }
-
-    .btn-reset {
-      background: #FEE2E2;
-      border: 2px solid var(--border-dark);
-      color: #EF4444;
-      font-size: 11px;
-      font-weight: 800;
-      padding: 5px 12px;
-      border-radius: 8px;
-      cursor: pointer;
-      box-shadow: var(--shadow-pop);
-      transition: all 0.15s;
-    }
-
-    .btn-reset:hover {
-      background: #EF4444;
-      color: #FFF;
     }
 
     /* Cartoon Grid Cards */
@@ -478,10 +492,13 @@
 
         <div class="paste-wrapper">
           <div class="paste-header">
-            <span class="paste-label">📥 Paste Data Dropzone <small style="color:var(--text-muted); font-weight:600;">(Copy rows directly from Google Sheet)</small></span>
-            <button class="btn-reset" onclick="clearPastedData()">Clear Data</button>
+            <span class="paste-label">🌐 Live Sheet Sync <small id="syncStatus" style="color:var(--text-muted); font-weight:600;">(Syncing CSV...)</small></span>
+            <div style="display:flex; gap:8px;">
+              <button class="btn-action btn-sync" onclick="fetchCSVData()">🔄 Refresh Data</button>
+              <button class="btn-action btn-reset" onclick="clearPastedData()">Clear Local Data</button>
+            </div>
           </div>
-          <textarea id="rawSheetPaste" class="paste-box" placeholder="Paste your Google Sheet raw rows here to instantly auto-populate the dashboard..." oninput="parseSheetData()"></textarea>
+          <textarea id="rawSheetPaste" class="paste-box" placeholder="Or paste your Google Sheet raw rows here..." oninput="parseSheetData()"></textarea>
         </div>
       </div>
 
@@ -529,7 +546,7 @@
             <span class="count-badge" id="count-unplanned">0</span>
           </div>
           <ul class="doodle-list" id="unplannedList">
-            <li class="doodle-list-item" style="color:var(--text-muted);">No data pasted yet</li>
+            <li class="doodle-list-item" style="color:var(--text-muted);">No data available</li>
           </ul>
         </div>
 
@@ -539,7 +556,7 @@
             <span class="count-badge" id="count-scaleup">0</span>
           </div>
           <ul class="doodle-list" id="scaleupList">
-            <li class="doodle-list-item" style="color:var(--text-muted);">No data pasted yet</li>
+            <li class="doodle-list-item" style="color:var(--text-muted);">No data available</li>
           </ul>
         </div>
 
@@ -549,7 +566,7 @@
             <span class="count-badge" id="count-scaledown-p">0</span>
           </div>
           <ul class="doodle-list" id="scaledownPendingList">
-            <li class="doodle-list-item" style="color:var(--text-muted);">No data pasted yet</li>
+            <li class="doodle-list-item" style="color:var(--text-muted);">No data available</li>
           </ul>
         </div>
       </div>
@@ -574,7 +591,7 @@
             </tr>
           </thead>
           <tbody id="sellerTableBody">
-            <tr><td colspan="10" style="text-align:center; color:var(--text-muted);">Paste data into Dashboard tab to view sellers.</td></tr>
+            <tr><td colspan="10" style="text-align:center; color:var(--text-muted);">Loading seller data...</td></tr>
           </tbody>
         </table>
       </div>
@@ -609,6 +626,8 @@
   </div>
 
   <script>
+    const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9jVeiYEHpUNlySSg9FtWGlVzuf0BGrdNMNJ0VUmJ--Sge9FrL36iUJkHbE9XRRSOtNq37PWykStMT/pub?gid=0&single=true&output=csv";
+
     const metabaseQueries = [
       { name: "Facebook PnL", type: "fb_pnl", id: 7240 },
       { name: "Product PnL", type: "standard", id: 5087 },
@@ -628,6 +647,31 @@
       { name: "City Wise RTO", type: "end_seller_start", id: 266 },
       { name: "State PnL - Campaign Split", type: "campaign_split", id: 4411 }
     ];
+
+    function fetchCSVData() {
+      const syncStatus = document.getElementById('syncStatus');
+      if (syncStatus) syncStatus.innerText = "(Fetching latest Google Sheet data...)";
+
+      Papa.parse(CSV_URL, {
+        download: true,
+        skipEmptyLines: true,
+        complete: function(results) {
+          if (results.data && results.data.length > 0) {
+            // Convert array data back to tab/newline formatted text or process raw rows directly
+            const formattedText = results.data.map(row => row.join('\t')).join('\n');
+            document.getElementById("rawSheetPaste").value = formattedText;
+            if (syncStatus) syncStatus.innerText = "(Live sync active)";
+            parseSheetData();
+          } else {
+            if (syncStatus) syncStatus.innerText = "(Failed to parse CSV link)";
+          }
+        },
+        error: function(err) {
+          console.error("CSV Fetch Error:", err);
+          if (syncStatus) syncStatus.innerText = "(Error fetching CSV link)";
+        }
+      });
+    }
 
     function fetchDailyQuote() {
       const fallbackQuotes = [
@@ -795,7 +839,7 @@
       localStorage.setItem("saved_sheet_data", rawText);
 
       const lines = rawText.split('\n');
-      const rawParsedRows = lines.map(line => line.split('\t'));
+      const rawParsedRows = lines.map(line => line.includes('\t') ? line.split('\t') : line.split(','));
 
       if (rawParsedRows.length < 2) return;
       pasteArea.classList.add('submerged');
@@ -969,7 +1013,7 @@
       document.getElementById('count-scaleup').innerText = countScaleup;
       document.getElementById('count-scaledown-p').innerText = countScaledownP;
 
-      document.getElementById('sellerTableBody').innerHTML = tableHtml || '<tr><td colspan="10" style="text-align:center;">No valid seller records found in pasted sheet.</td></tr>';
+      document.getElementById('sellerTableBody').innerHTML = tableHtml || '<tr><td colspan="10" style="text-align:center;">No valid seller records found in sheet.</td></tr>';
     }
 
     function switchTab(tabId) {
@@ -984,11 +1028,8 @@
       setAutoLastWeekDateRange();
       fetchDailyQuote();
 
-      const savedData = localStorage.getItem("saved_sheet_data");
-      if (savedData) {
-        document.getElementById("rawSheetPaste").value = savedData;
-        parseSheetData();
-      }
+      // Automatically fetch latest data directly from the CSV URL on page load
+      fetchCSVData();
     };
   </script>
 </body>
