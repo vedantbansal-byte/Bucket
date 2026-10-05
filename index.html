@@ -626,10 +626,14 @@
   </div>
 
   <script>
-    const RAW_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9jVeiYEHpUNlySSg9FtWGlVzuf0BGrdNMNJ0VUmJ--Sge9FrL36iUJkHbE9XRRSOtNq37PWykStMT/pub?gid=0&single=true&output=csv";
+    const PUB_ID = "2PACX-1vQ9jVeiYEHpUNlySSg9FtWGlVzuf0BGrdNMNJ0VUmJ--Sge9FrL36iUJkHbE9XRRSOtNq37PWykStMT";
+    const RAW_CSV_URL = `https://docs.google.com/spreadsheets/d/e/${PUB_ID}/pub?gid=0&single=true&output=csv`;
     
-    // Using corsproxy.io wrapper to prevent CORS error from Google Sheets endpoint
-    const PROXIED_CSV_URL = "https://corsproxy.io/?" + encodeURIComponent(RAW_CSV_URL);
+    const PROXY_CHAINS = [
+      (url) => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+      (url) => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+      (url) => `https://thingproxy.freeboard.io/fetch/${url}`
+    ];
 
     const metabaseQueries = [
       { name: "Facebook PnL", type: "fb_pnl", id: 7240 },
@@ -651,43 +655,71 @@
       { name: "State PnL - Campaign Split", type: "campaign_split", id: 4411 }
     ];
 
-    function fetchCSVData() {
+    // Global callback handler for Google Viz JSONP JSON endpoint
+    window.handleGvizResponse = function(response) {
+      const syncStatus = document.getElementById('syncStatus');
+      if (!response || !response.table || !response.table.rows) {
+        if (syncStatus) syncStatus.innerText = "(Failed to parse Google Sheet JSONP response)";
+        return;
+      }
+
+      const cols = response.table.cols.map(c => c ? c.label || c.id : '');
+      const rows = response.table.rows.map(r => r.c.map(cell => cell ? (cell.v !== null ? cell.v : '') : ''));
+
+      const allData = [cols, ...rows];
+      const formattedText = allData.map(row => row.join('\t')).join('\n');
+      
+      document.getElementById("rawSheetPaste").value = formattedText;
+      if (syncStatus) syncStatus.innerText = "(Live sync active)";
+      parseSheetData();
+    };
+
+    async function fetchCSVData() {
       const syncStatus = document.getElementById('syncStatus');
       if (syncStatus) syncStatus.innerText = "(Fetching latest Google Sheet data...)";
 
-      Papa.parse(PROXIED_CSV_URL, {
-        download: true,
-        skipEmptyLines: true,
-        complete: function(results) {
-          if (results.data && results.data.length > 0) {
-            const formattedText = results.data.map(row => row.join('\t')).join('\n');
-            document.getElementById("rawSheetPaste").value = formattedText;
-            if (syncStatus) syncStatus.innerText = "(Live sync active)";
-            parseSheetData();
-          } else {
-            if (syncStatus) syncStatus.innerText = "(Failed to parse CSV link)";
+      // 1. Primary Strategy: JSONP endpoint via script injection (bypasses CORS restrictions)
+      const gvizScript = document.createElement('script');
+      gvizScript.src = `https://docs.google.com/spreadsheets/d/e/${PUB_ID}/gviz/tq?tqx=responseHandler:handleGvizResponse`;
+      gvizScript.onerror = async () => {
+        console.warn("GViz JSONP fetch failed. Falling back to multi-proxy chain...");
+        await fetchViaProxies();
+      };
+      document.body.appendChild(gvizScript);
+    }
+
+    async function fetchViaProxies() {
+      const syncStatus = document.getElementById('syncStatus');
+      let csvText = null;
+
+      for (const proxyFn of PROXY_CHAINS) {
+        try {
+          const proxiedUrl = proxyFn(RAW_CSV_URL);
+          const response = await fetch(proxiedUrl);
+          if (response.ok) {
+            csvText = await response.text();
+            if (csvText && csvText.trim().length > 0) break;
           }
-        },
-        error: function(err) {
-          console.error("CSV Fetch Error:", err);
-          // Fallback direct attempt if proxy fails
-          Papa.parse(RAW_CSV_URL, {
-            download: true,
-            skipEmptyLines: true,
-            complete: function(results) {
-              if (results.data && results.data.length > 0) {
-                const formattedText = results.data.map(row => row.join('\t')).join('\n');
-                document.getElementById("rawSheetPaste").value = formattedText;
-                if (syncStatus) syncStatus.innerText = "(Live sync active)";
-                parseSheetData();
-              }
-            },
-            error: function() {
-              if (syncStatus) syncStatus.innerText = "(Error fetching CSV link - try manual paste)";
-            }
-          });
+        } catch (err) {
+          console.warn("Proxy attempt failed:", err);
         }
-      });
+      }
+
+      if (csvText && csvText.trim().length > 0) {
+        Papa.parse(csvText, {
+          skipEmptyLines: true,
+          complete: function(results) {
+            if (results.data && results.data.length > 0) {
+              const formattedText = results.data.map(row => row.join('\t')).join('\n');
+              document.getElementById("rawSheetPaste").value = formattedText;
+              if (syncStatus) syncStatus.innerText = "(Live sync active)";
+              parseSheetData();
+            }
+          }
+        });
+      } else {
+        if (syncStatus) syncStatus.innerText = "(CORS Blocked: Copy/Paste sheet rows directly below)";
+      }
     }
 
     function fetchDailyQuote() {
