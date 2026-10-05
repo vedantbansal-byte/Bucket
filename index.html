@@ -21,7 +21,6 @@
       --funky-purple: #8B5CF6;
       --funky-green: #10B981;
       --funky-orange: #F97316;
-      --funky-shadow: 0px 4px 12px rgba(0, 0, 0, 0.05);
     }
 
     * {
@@ -38,7 +37,6 @@
       min-height: 100vh;
     }
 
-    /* Sidebar Navigation */
     .sidebar {
       width: 240px;
       background: #FFFFFF;
@@ -79,16 +77,9 @@
       box-shadow: 2px 2px 0px #000;
     }
 
-    .nav-btn:hover {
-      transform: translateY(-1px);
-    }
+    .nav-btn:hover { transform: translateY(-1px); }
+    .nav-btn.active { background: var(--funky-blue); color: #FFFFFF; }
 
-    .nav-btn.active {
-      background: var(--funky-blue);
-      color: #FFFFFF;
-    }
-
-    /* Main Container */
     .main-content {
       flex-grow: 1;
       padding: 24px;
@@ -101,11 +92,8 @@
       gap: 20px;
     }
 
-    .tab-content.hidden {
-      display: none;
-    }
+    .tab-content.hidden { display: none; }
 
-    /* Top Quote Banner & Sync Section */
     .top-banner {
       background: #FFFFFF;
       border: 2px solid #000;
@@ -193,7 +181,6 @@
       opacity: 0.6;
     }
 
-    /* Metric Cards Grid */
     .metrics-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -225,7 +212,6 @@
       margin-top: 8px;
     }
 
-    /* List Cards Grid */
     .lists-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -286,7 +272,6 @@
       font-size: 13px;
     }
 
-    /* Table Styling */
     .table-container {
       background: #FFFFFF;
       border: 2px solid #000;
@@ -336,7 +321,6 @@
       box-shadow: 1px 1px 0px #000;
     }
 
-    /* Metabase Specific Tab Cards */
     .metabase-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
@@ -373,24 +357,16 @@
 
   <!-- Sidebar -->
   <div class="sidebar">
-    <div class="brand-card">
-      🎈 Vedant's Bucket
-    </div>
-    <button id="btn-dashboard" class="nav-btn active" onclick="switchTab('dashboard')">
-      📊 Dashboard
-    </button>
-    <button id="btn-sellers" class="nav-btn" onclick="switchTab('sellers')">
-      🛒 Seller Details
-    </button>
-    <button id="btn-metabase" class="nav-btn" onclick="switchTab('metabase')">
-      📈 Metabase
-    </button>
+    <div class="brand-card">🎈 Vedant's Bucket</div>
+    <button id="btn-dashboard" class="nav-btn active" onclick="switchTab('dashboard')">📊 Dashboard</button>
+    <button id="btn-sellers" class="nav-btn" onclick="switchTab('sellers')">🛒 Seller Details</button>
+    <button id="btn-metabase" class="nav-btn" onclick="switchTab('metabase')">📈 Metabase</button>
   </div>
 
-  <!-- Main Content -->
+  <!-- Main Container -->
   <div class="main-content">
     
-    <!-- Top Quote Banner & Sync -->
+    <!-- Top Banner -->
     <div class="top-banner">
       <div class="banner-header">
         <div id="dailyQuote" class="daily-quote">“Quality means doing it right when no one is looking.” — Henry Ford</div>
@@ -419,7 +395,6 @@
     <!-- Dashboard Tab -->
     <div id="dashboard" class="tab-content" style="margin-top: 20px;">
       
-      <!-- Metrics Row 1 -->
       <div class="metrics-grid">
         <div class="metric-card">
           <span class="metric-label">Start Week Budget</span>
@@ -447,7 +422,6 @@
         </div>
       </div>
 
-      <!-- Metrics Row 2 -->
       <div class="metrics-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
         <div class="metric-card">
           <span class="metric-label">TS Submitted %</span>
@@ -459,7 +433,6 @@
         </div>
       </div>
 
-      <!-- Categorized Action Lists -->
       <div class="lists-grid">
         <div class="list-card">
           <div class="list-header">
@@ -529,16 +502,20 @@
         <span style="font-size:12px; color:var(--text-muted);">Active Range: <b id="mb-val-curr-start">-</b> to <b id="mb-val-curr-end">-</b> (Today: <b id="mb-val-curr-date">-</b>)</span>
       </div>
 
-      <div id="metabaseCardsContainer" class="metabase-grid">
-        <!-- Dynamic Cards Inserted Here -->
-      </div>
+      <div id="metabaseCardsContainer" class="metabase-grid"></div>
     </div>
 
   </div>
 
   <script>
-    // Published Google Sheet CSV Endpoint
-    const PUBLISHED_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9jVeiYEHpUNlySSg9FtWGlVzuf0BGrdNMNJ0VUmJ--Sge9FrL36iUJkHbE9XRRSOtNq37PWykStMT/pub?output=csv";
+    // Sheet Endpoint and Alternative Proxy Fallbacks
+    const RAW_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9jVeiYEHpUNlySSg9FtWGlVzuf0BGrdNMNJ0VUmJ--Sge9FrL36iUJkHbE9XRRSOtNq37PWykStMT/pub?output=csv";
+
+    const PROXY_ENDPOINTS = [
+      "https://api.allorigins.win/raw?url=" + encodeURIComponent(RAW_CSV_URL),
+      "https://corsproxy.io/?" + encodeURIComponent(RAW_CSV_URL),
+      "https://proxy.cors.sh/" + RAW_CSV_URL
+    ];
 
     const metabaseQueries = [
       { name: "Facebook PnL", type: "fb_pnl", id: 7240 },
@@ -560,64 +537,63 @@
       { name: "State PnL - Campaign Split", type: "campaign_split", id: 4411 }
     ];
 
-    function fetchCSVData() {
+    // Robust CSV / TSV Line Splitter
+    function parseCSVLine(line) {
+      let result = [];
+      let insideQuote = false;
+      let currentEntry = '';
+      const delimiter = line.includes('\t') ? '\t' : ',';
+
+      for (let i = 0; i < line.length; i++) {
+        let char = line[i];
+        if (char === '"') {
+          insideQuote = !insideQuote;
+        } else if (char === delimiter && !insideQuote) {
+          result.push(currentEntry.trim());
+          currentEntry = '';
+        } else {
+          currentEntry += char;
+        }
+      }
+      result.push(currentEntry.trim());
+      return result.map(val => val.replace(/^"|"$/g, '').trim());
+    }
+
+    async function fetchCSVData() {
       const syncStatus = document.getElementById('syncStatus');
       if (syncStatus) syncStatus.innerText = "(Fetching latest Google Sheet data...)";
 
-      // Wrap request with corsproxy to bypass Google's redirect CORS policy
-      const proxyUrl = "https://corsproxy.io/?" + encodeURIComponent(PUBLISHED_CSV_URL);
+      let fetchedData = null;
 
-      fetch(proxyUrl)
-        .then(res => {
-          if (!res.ok) throw new Error("HTTP " + res.status);
-          return res.text();
-        })
-        .then(csvText => {
-          if (!csvText || csvText.trim().length === 0) throw new Error("Empty CSV content");
-          
+      for (let endpoint of PROXY_ENDPOINTS) {
+        try {
+          const res = await fetch(endpoint);
+          if (res.ok) {
+            const text = await res.text();
+            if (text && text.trim().length > 50) {
+              fetchedData = text;
+              break;
+            }
+          }
+        } catch (e) {
+          console.warn("Proxy failed, trying next fallback...", endpoint);
+        }
+      }
+
+      if (fetchedData) {
+        const pasteArea = document.getElementById("rawSheetPaste");
+        if (pasteArea) pasteArea.value = fetchedData;
+        if (syncStatus) syncStatus.innerText = "(Live sync active)";
+        parseSheetData();
+      } else {
+        if (syncStatus) syncStatus.innerText = "(Live fetch failed - paste data below manually)";
+        const saved = localStorage.getItem("saved_sheet_data");
+        if (saved) {
           const pasteArea = document.getElementById("rawSheetPaste");
-          if (pasteArea) {
-            pasteArea.value = csvText;
-          }
-          if (syncStatus) syncStatus.innerText = "(Live sync active)";
+          if (pasteArea) pasteArea.value = saved;
           parseSheetData();
-        })
-        .catch(err => {
-          console.error("Live fetch failed:", err);
-          if (syncStatus) syncStatus.innerText = "(Live fetch failed - paste data below manually)";
-          
-          // Fallback to local cached data if available
-          const saved = localStorage.getItem("saved_sheet_data");
-          if (saved) {
-            const pasteArea = document.getElementById("rawSheetPaste");
-            if (pasteArea) pasteArea.value = saved;
-            parseSheetData();
-          }
-        });
-    }
-
-    function fetchDailyQuote() {
-      const fallbackQuotes = [
-        "“Success is not final, failure is not fatal: it is the courage to continue that counts.” — Winston Churchill",
-        "“Do what you can with all you have, wherever you are.” — Theodore Roosevelt",
-        "“Quality means doing it right when no one is looking.” — Henry Ford"
-      ];
-      
-      fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent('https://zenquotes.io/api/today'))
-        .then(res => res.json())
-        .then(data => {
-          const qElem = document.getElementById('dailyQuote');
-          if (qElem && data && data[0] && data[0].q) {
-            qElem.innerText = `“${data[0].q}” — ${data[0].a}`;
-          } else throw new Error();
-        })
-        .catch(() => {
-          const qElem = document.getElementById('dailyQuote');
-          if (qElem) {
-            const randomFallback = fallbackQuotes[Math.floor(Math.random() * fallbackQuotes.length)];
-            qElem.innerText = randomFallback;
-          }
-        });
+        }
+      }
     }
 
     function setAutoLastWeekDateRange() {
@@ -755,13 +731,9 @@
 
     function getTsBadgeStyle(status) {
       const s = (status || "").toLowerCase();
-      if (s.includes('submitted')) {
-        return 'background:#D1FAE5; color:#059669;';
-      } else if (s.includes('google')) {
-        return 'background:#FEF3C7; color:#D97706;';
-      } else {
-        return 'background:#F1F5F9; color:#64748B;';
-      }
+      if (s.includes('submitted')) return 'background:#D1FAE5; color:#059669;';
+      if (s.includes('google')) return 'background:#FEF3C7; color:#D97706;';
+      return 'background:#F1F5F9; color:#64748B;';
     }
 
     function clearPastedData() {
@@ -783,13 +755,13 @@
 
       localStorage.setItem("saved_sheet_data", rawText);
 
-      const lines = rawText.split('\n');
-      const rawParsedRows = lines.map(line => line.includes('\t') ? line.split('\t') : line.split(','));
-
-      if (rawParsedRows.length < 2) return;
+      const lines = rawText.split(/\r?\n/).filter(line => line.trim().length > 0);
+      if (lines.length < 2) return;
+      
       pasteArea.classList.add('submerged');
 
-      const headers = rawParsedRows[0].map(h => h.trim().toLowerCase().replace(/[^a-z0-9%]/g, ''));
+      const rawParsedRows = lines.map(line => parseCSVLine(line));
+      const headers = rawParsedRows[0].map(h => h.toLowerCase().replace(/[^a-z0-9%]/g, ''));
       
       let colMap = {
         sId: -1, sName: -1, cat: -1, adAcc: -1, web: -1, ts: -1, action: -1,
@@ -812,7 +784,7 @@
         else if (h.includes('plannedscaledownpending') || h.includes('scaledownpending')) colMap.scaledownP = idx;
       });
 
-      // Default index positions
+      // Default index fallbacks
       if (colMap.sId === -1) colMap.sId = 0;
       if (colMap.sName === -1) colMap.sName = 1;
       if (colMap.cat === -1) colMap.cat = 2;
@@ -830,8 +802,7 @@
       const dataRows = rawParsedRows.slice(1);
       let sumStartBudget = 0, sumCurrBudget = 0, sumWeekTarget = 0;
       let sumUnplanned = 0, sumScaleupP = 0, sumScaledownP = 0;
-      let tsSubmittedCount = 0;
-      let actionCompletedCount = 0;
+      let tsSubmittedCount = 0, actionCompletedCount = 0;
 
       let tableHtml = "";
       let unplannedListHtml = "";
@@ -881,11 +852,8 @@
         const tsStyle = getTsBadgeStyle(ts);
 
         let currBudgetColor = "var(--text-main)";
-        if (currB > weekT) {
-          currBudgetColor = "#10B981";
-        } else if (currB < weekT) {
-          currBudgetColor = "#EF4444";
-        }
+        if (currB > weekT) currBudgetColor = "#10B981";
+        else if (currB < weekT) currBudgetColor = "#EF4444";
 
         if (unplan !== 0) {
           countUnplanned++;
@@ -983,7 +951,6 @@
 
     window.onload = function() {
       setAutoLastWeekDateRange();
-      fetchDailyQuote();
       fetchCSVData();
     };
   </script>
