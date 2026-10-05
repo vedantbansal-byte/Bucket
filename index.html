@@ -626,7 +626,10 @@
   </div>
 
   <script>
-    const CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9jVeiYEHpUNlySSg9FtWGlVzuf0BGrdNMNJ0VUmJ--Sge9FrL36iUJkHbE9XRRSOtNq37PWykStMT/pub?gid=0&single=true&output=csv";
+    const RAW_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ9jVeiYEHpUNlySSg9FtWGlVzuf0BGrdNMNJ0VUmJ--Sge9FrL36iUJkHbE9XRRSOtNq37PWykStMT/pub?gid=0&single=true&output=csv";
+    
+    // Using corsproxy.io wrapper to prevent CORS error from Google Sheets endpoint
+    const PROXIED_CSV_URL = "https://corsproxy.io/?" + encodeURIComponent(RAW_CSV_URL);
 
     const metabaseQueries = [
       { name: "Facebook PnL", type: "fb_pnl", id: 7240 },
@@ -652,12 +655,11 @@
       const syncStatus = document.getElementById('syncStatus');
       if (syncStatus) syncStatus.innerText = "(Fetching latest Google Sheet data...)";
 
-      Papa.parse(CSV_URL, {
+      Papa.parse(PROXIED_CSV_URL, {
         download: true,
         skipEmptyLines: true,
         complete: function(results) {
           if (results.data && results.data.length > 0) {
-            // Convert array data back to tab/newline formatted text or process raw rows directly
             const formattedText = results.data.map(row => row.join('\t')).join('\n');
             document.getElementById("rawSheetPaste").value = formattedText;
             if (syncStatus) syncStatus.innerText = "(Live sync active)";
@@ -668,7 +670,22 @@
         },
         error: function(err) {
           console.error("CSV Fetch Error:", err);
-          if (syncStatus) syncStatus.innerText = "(Error fetching CSV link)";
+          // Fallback direct attempt if proxy fails
+          Papa.parse(RAW_CSV_URL, {
+            download: true,
+            skipEmptyLines: true,
+            complete: function(results) {
+              if (results.data && results.data.length > 0) {
+                const formattedText = results.data.map(row => row.join('\t')).join('\n');
+                document.getElementById("rawSheetPaste").value = formattedText;
+                if (syncStatus) syncStatus.innerText = "(Live sync active)";
+                parseSheetData();
+              }
+            },
+            error: function() {
+              if (syncStatus) syncStatus.innerText = "(Error fetching CSV link - try manual paste)";
+            }
+          });
         }
       });
     }
@@ -934,12 +951,11 @@
 
         const tsStyle = getTsBadgeStyle(ts);
 
-        // Color coding logic for Current Budget vs Week Target
         let currBudgetColor = "var(--text-main)";
         if (currB > weekT) {
-          currBudgetColor = "#10B981"; // Light Green
+          currBudgetColor = "#10B981";
         } else if (currB < weekT) {
-          currBudgetColor = "#EF4444"; // Light Red
+          currBudgetColor = "#EF4444";
         }
 
         if (unplan !== 0) {
@@ -1027,8 +1043,6 @@
     window.onload = function() {
       setAutoLastWeekDateRange();
       fetchDailyQuote();
-
-      // Automatically fetch latest data directly from the CSV URL on page load
       fetchCSVData();
     };
   </script>
